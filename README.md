@@ -25,14 +25,43 @@ An interactive Mandelbrot set explorer for Android, built with Kotlin and Jetpac
 - **Configurable iteration depth** (128 to 100,000 iterations)
 
 ### Bookmarks
-- **Save interesting locations** with automatic thumbnail generation
-- **Bookmark manager** to browse and restore saved views
-- **Persistent storage** using Room database
+
+Save and organize your favorite fractal discoveries:
+
+- **Create bookmarks** - Tap the bookmark icon in the toolbar to save your current view
+- **Automatic thumbnails** - Each bookmark generates a preview thumbnail of the fractal at that location
+- **Browse saved views** - Open the bookmarks list to see all your saved locations with thumbnails
+- **Quick restore** - Tap any bookmark to instantly jump back to that exact view (zoom, position, iterations, and color palette)
+- **Delete bookmarks** - Remove bookmarks you no longer need from the manager
+- **Persistent storage** - Bookmarks are saved in a Room database and persist across app restarts
+- **Perfect for sharing** - Save interesting locations to show friends or revisit later
 
 ### Settings & Preferences
-- **Restore last view** - Automatically returns to your last explored location on app restart
-- **Persistent preferences** using DataStore
-- All settings accessible via in-app dialog
+
+Customize your fractal exploration experience through the settings dialog:
+
+#### Display Settings
+- **Restore last view on startup** - Toggle whether the app returns to your last explored location or starts at the full Mandelbrot set
+- **Current view info** - See your exact position (center coordinates and zoom level)
+
+#### Rendering Settings
+- **Max iterations** - Adjust from 128 to 100,000 iterations
+  - Lower values render faster but show less detail at deep zoom levels
+  - Higher values reveal intricate patterns in deep regions but take longer to calculate
+  - Automatically saved with your preferences
+
+#### Color Settings
+- **Color palette** - Choose from 6 beautiful palettes:
+  - **Classic** - Traditional blue/yellow Mandelbrot colors
+  - **Fire** - Warm reds, oranges, and yellows
+  - **Ocean** - Cool blues and greens
+  - **Rainbow** - Full spectrum of colors
+  - **Psychedelic** - Vibrant, high-contrast colors
+  - **Grayscale** - Monochrome for a different aesthetic
+- **Animation speed** - Control how fast colors cycle (if animation is enabled)
+- **Play/Pause** - Toggle color animation on/off directly from the toolbar
+
+All settings are automatically saved using DataStore and persist across app sessions.
 
 ## Technical Details
 
