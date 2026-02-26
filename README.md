@@ -116,7 +116,23 @@ The set exhibits infinite complexity at all scales, revealing intricate self-sim
 
 ## Screenshots
 
-*TODO: Add screenshots here*
+### Main View
+![Main fractal view](screenshots/main1.png)
+
+### Beautiful Fractals
+<p float="left">
+  <img src="screenshots/spiral.png" width="32%" />
+  <img src="screenshots/seahorses.png" width="32%" />
+</p>
+
+### Features
+<p float="left">
+  <img src="screenshots/settings1.png" width="32%" />
+  <img src="screenshots/settings2.png" width="32%" />
+  <img src="screenshots/bookmarks.png" width="32%" />
+</p>
+
+*Settings, color palettes, and bookmark management*
 
 ## License
 
