@@ -1,6 +1,10 @@
 # FractalD
 
-An interactive Mandelbrot set explorer for Android, built with Kotlin and Jetpack Compose.
+FractalD is an interactive Mandelbrot set explorer for Android built with Kotlin and Jetpack Compose.
+
+This project started as an experiment in fractal rendering and mathematical visualization, and evolved into a full-featured explorer designed for smooth real-time navigation of the Mandelbrot set.
+
+The goal was to combine efficient rendering techniques with a modern Android UI to make exploring fractals intuitive and fast on a mobile device.
 
 ## Features
 
