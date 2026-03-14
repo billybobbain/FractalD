@@ -12,6 +12,7 @@ import com.billybobbain.fractald.data.BookmarkRepository
 import com.billybobbain.fractald.data.PreferencesRepository
 import com.billybobbain.fractald.data.UserPreferences
 import com.billybobbain.fractald.data.ViewState
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.SharingStarted
@@ -37,6 +38,13 @@ class FractalViewModel(context: Context) : ViewModel() {
 
     var isCalculating by mutableStateOf(false)
 
+    var paletteOffset by mutableStateOf(0f)
+        private set
+
+    fun updatePaletteOffset(offset: Float) {
+        paletteOffset = offset.coerceIn(0f, 255f)
+    }
+
     private var debounceJob: Job? = null
 
     // Navigation history
@@ -49,6 +57,13 @@ class FractalViewModel(context: Context) : ViewModel() {
         private set
 
     private var isNavigatingHistory = false
+
+    /** When non-null, canvas should apply this state to the current engine (e.g. after history/bookmark restore). */
+    val pendingRestoreState = MutableStateFlow<ViewState?>(null)
+
+    fun clearPendingRestoreState() {
+        pendingRestoreState.value = null
+    }
 
     fun requestRecalculation() {
         // Cancel pending recalculation
@@ -104,6 +119,26 @@ class FractalViewModel(context: Context) : ViewModel() {
         }
     }
 
+    fun updateIsPaletteCycling(cycling: Boolean) {
+        viewModelScope.launch {
+            preferencesRepository.updateIsPaletteCycling(cycling)
+        }
+    }
+
+    fun updateFractalType(fractalType: String) {
+        viewModelScope.launch {
+            preferencesRepository.updateFractalType(fractalType)
+            requestRecalculation()
+        }
+    }
+
+    fun updateJuliaC(cRe: Double, cIm: Double) {
+        viewModelScope.launch {
+            preferencesRepository.updateJuliaC(cRe, cIm)
+            requestRecalculation()
+        }
+    }
+
     // Bookmark management
     val allBookmarks: StateFlow<List<Bookmark>> = bookmarkRepository.allBookmarks
         .stateIn(
@@ -119,7 +154,10 @@ class FractalViewModel(context: Context) : ViewModel() {
         zoom: Double,
         maxIterations: Int,
         colorPalette: String,
-        thumbnail: ByteArray?
+        thumbnail: ByteArray?,
+        fractalType: String = com.billybobbain.fractald.data.FractalType.MANDELBROT.name,
+        juliaCRe: Double? = null,
+        juliaCIm: Double? = null
     ) {
         viewModelScope.launch {
             val bookmark = Bookmark(
@@ -129,7 +167,10 @@ class FractalViewModel(context: Context) : ViewModel() {
                 zoom = zoom,
                 maxIterations = maxIterations,
                 colorPalette = colorPalette,
-                thumbnail = thumbnail
+                thumbnail = thumbnail,
+                fractalType = fractalType,
+                juliaCRe = juliaCRe,
+                juliaCIm = juliaCIm
             )
             bookmarkRepository.insert(bookmark)
         }
@@ -186,7 +227,10 @@ class FractalViewModel(context: Context) : ViewModel() {
                state1.centerY == state2.centerY &&
                state1.zoom == state2.zoom &&
                state1.maxIterations == state2.maxIterations &&
-               state1.colorPalette == state2.colorPalette
+               state1.colorPalette == state2.colorPalette &&
+               state1.fractalType == state2.fractalType &&
+               state1.juliaCRe == state2.juliaCRe &&
+               state1.juliaCIm == state2.juliaCIm
     }
 
     fun goBack(): ViewState? {
@@ -194,7 +238,15 @@ class FractalViewModel(context: Context) : ViewModel() {
             currentHistoryIndex--
             updateHistoryButtons()
             isNavigatingHistory = true
-            return history[currentHistoryIndex]
+            val state = history[currentHistoryIndex]
+            viewModelScope.launch {
+                preferencesRepository.updateFractalType(state.fractalType)
+                state.juliaCRe?.let { re -> state.juliaCIm?.let { im ->
+                    preferencesRepository.updateJuliaC(re, im)
+                } }
+            }
+            pendingRestoreState.value = state
+            return state
         }
         return null
     }
@@ -204,7 +256,15 @@ class FractalViewModel(context: Context) : ViewModel() {
             currentHistoryIndex++
             updateHistoryButtons()
             isNavigatingHistory = true
-            return history[currentHistoryIndex]
+            val state = history[currentHistoryIndex]
+            viewModelScope.launch {
+                preferencesRepository.updateFractalType(state.fractalType)
+                state.juliaCRe?.let { re -> state.juliaCIm?.let { im ->
+                    preferencesRepository.updateJuliaC(re, im)
+                } }
+            }
+            pendingRestoreState.value = state
+            return state
         }
         return null
     }

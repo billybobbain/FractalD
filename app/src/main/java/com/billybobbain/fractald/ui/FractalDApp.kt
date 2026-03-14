@@ -1,11 +1,13 @@
 package com.billybobbain.fractald.ui
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.Alignment
 import androidx.compose.material.icons.Icons
@@ -29,9 +31,16 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.billybobbain.fractald.BurningShipEngine
 import com.billybobbain.fractald.ColorPalette
+import com.billybobbain.fractald.FractalEngine
+import com.billybobbain.fractald.JuliaSetEngine
 import com.billybobbain.fractald.MandelbrotEngine
+import com.billybobbain.fractald.TricornEngine
+import com.billybobbain.fractald.data.FractalType
 import com.billybobbain.fractald.data.ViewState
 import com.billybobbain.fractald.viewmodel.FractalViewModel
 import kotlinx.coroutines.Dispatchers
@@ -46,8 +55,10 @@ fun FractalDApp(viewModel: FractalViewModel) {
     var showSettings by remember { mutableStateOf(false) }
     var showSaveBookmark by remember { mutableStateOf(false) }
     var showBookmarksList by remember { mutableStateOf(false) }
+    var showGoToDialog by remember { mutableStateOf(false) }
+    var displayCoords by remember { mutableStateOf<Triple<Double, Double, Double>?>(null) }
 
-    var currentEngine by remember { mutableStateOf<com.billybobbain.fractald.MandelbrotEngine?>(null) }
+    var currentEngine by remember { mutableStateOf<FractalEngine?>(null) }
     var currentColoredData by remember { mutableStateOf<Array<IntArray>?>(null) }
 
     Scaffold(
@@ -64,17 +75,8 @@ fun FractalDApp(viewModel: FractalViewModel) {
                 navigationIcon = {
                     IconButton(
                         onClick = {
-                            viewModel.goBack()?.let { state ->
-                                currentEngine?.let { engine ->
-                                    engine.centerX = state.centerX
-                                    engine.centerY = state.centerY
-                                    engine.zoom = state.zoom
-                                    engine.maxIterations = state.maxIterations
-                                    viewModel.updateMaxIterations(state.maxIterations)
-                                    viewModel.updateColorPalette(state.colorPalette)
-                                    viewModel.requestRecalculation()
-                                }
-                            }
+                            viewModel.goBack()
+                            viewModel.requestRecalculation()
                         },
                         enabled = viewModel.canGoBack
                     ) {
@@ -84,17 +86,8 @@ fun FractalDApp(viewModel: FractalViewModel) {
                 actions = {
                     IconButton(
                         onClick = {
-                            viewModel.goForward()?.let { state ->
-                                currentEngine?.let { engine ->
-                                    engine.centerX = state.centerX
-                                    engine.centerY = state.centerY
-                                    engine.zoom = state.zoom
-                                    engine.maxIterations = state.maxIterations
-                                    viewModel.updateMaxIterations(state.maxIterations)
-                                    viewModel.updateColorPalette(state.colorPalette)
-                                    viewModel.requestRecalculation()
-                                }
-                            }
+                            viewModel.goForward()
+                            viewModel.requestRecalculation()
                         },
                         enabled = viewModel.canGoForward
                     ) {
@@ -132,13 +125,79 @@ fun FractalDApp(viewModel: FractalViewModel) {
         ) {
             FractalCanvas(
                 viewModel = viewModel,
+                fractalType = userPreferences.fractalType,
+                juliaCRe = userPreferences.juliaCRe,
+                juliaCIm = userPreferences.juliaCIm,
                 colorPalette = userPreferences.colorPalette,
                 isAnimated = userPreferences.isAnimated,
                 animationSpeed = userPreferences.animationSpeed,
                 maxIterations = userPreferences.maxIterations,
+                isPaletteCycling = userPreferences.isPaletteCycling,
+                paletteOffset = viewModel.paletteOffset,
                 onEngineUpdate = { engine -> currentEngine = engine },
-                onColoredDataUpdate = { data -> currentColoredData = data }
+                onColoredDataUpdate = { data -> currentColoredData = data },
+                onViewStateUpdate = { x, y, z -> displayCoords = Triple(x, y, z) }
             )
+
+            // Bottom overlay bar — coordinates (left) and palette offset slider (right)
+            val showOffsetSlider = userPreferences.isAnimated || userPreferences.isPaletteCycling
+            if (displayCoords != null || showOffsetSlider) {
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.75f),
+                    shape = MaterialTheme.shapes.small,
+                    tonalElevation = 2.dp
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Coordinates — tap to open GoTo dialog
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable(enabled = displayCoords != null) { showGoToDialog = true }
+                        ) {
+                            displayCoords?.let { (x, y, z) ->
+                                val yStr = if (y >= 0) "+ ${String.format("%.6g", y)}i"
+                                           else "- ${String.format("%.6g", -y)}i"
+                                Text(
+                                    text = "${String.format("%.6g", x)} $yStr",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                                Text(
+                                    text = "zoom: ${String.format("%.3e", z)}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                            }
+                        }
+
+                        // Palette offset slider
+                        if (showOffsetSlider) {
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text(
+                                    text = "Offset ${viewModel.paletteOffset.toInt()}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                                Slider(
+                                    value = viewModel.paletteOffset,
+                                    onValueChange = { viewModel.updatePaletteOffset(it) },
+                                    valueRange = 0f..255f,
+                                    modifier = Modifier.width(140.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         if (showSettings) {
@@ -154,6 +213,9 @@ fun FractalDApp(viewModel: FractalViewModel) {
                 engine = currentEngine!!,
                 coloredData = currentColoredData!!,
                 currentPalette = userPreferences.colorPalette,
+                fractalType = userPreferences.fractalType,
+                juliaCRe = userPreferences.juliaCRe,
+                juliaCIm = userPreferences.juliaCIm,
                 onDismiss = { showSaveBookmark = false }
             )
         }
@@ -163,45 +225,117 @@ fun FractalDApp(viewModel: FractalViewModel) {
                 viewModel = viewModel,
                 onDismiss = { showBookmarksList = false },
                 onRestoreBookmark = { bookmark ->
-                    currentEngine?.let { engine ->
-                        engine.centerX = bookmark.centerX
-                        engine.centerY = bookmark.centerY
-                        engine.zoom = bookmark.zoom
-                        engine.maxIterations = bookmark.maxIterations
-                        viewModel.updateMaxIterations(bookmark.maxIterations)
-                        viewModel.updateColorPalette(bookmark.colorPalette)
-                        viewModel.requestRecalculation()
-                    }
+                    viewModel.updateFractalType(bookmark.fractalType)
+                    viewModel.updateJuliaC(bookmark.juliaCRe ?: -0.7, bookmark.juliaCIm ?: 0.27015)
+                    viewModel.updateMaxIterations(bookmark.maxIterations)
+                    viewModel.updateColorPalette(bookmark.colorPalette)
+                    viewModel.pendingRestoreState.value = ViewState(
+                        centerX = bookmark.centerX,
+                        centerY = bookmark.centerY,
+                        zoom = bookmark.zoom,
+                        maxIterations = bookmark.maxIterations,
+                        colorPalette = bookmark.colorPalette,
+                        fractalType = bookmark.fractalType,
+                        juliaCRe = bookmark.juliaCRe,
+                        juliaCIm = bookmark.juliaCIm
+                    )
+                    viewModel.requestRecalculation()
                     showBookmarksList = false
+                }
+            )
+        }
+
+        if (showGoToDialog && currentEngine != null && displayCoords != null) {
+            GoToDialog(
+                currentX = displayCoords!!.first,
+                currentY = displayCoords!!.second,
+                currentZoom = displayCoords!!.third,
+                onDismiss = { showGoToDialog = false },
+                onGo = { x, y, z ->
+                    currentEngine!!.centerX = x
+                    currentEngine!!.centerY = y
+                    currentEngine!!.zoom = z
+                    viewModel.requestRecalculation()
+                    showGoToDialog = false
                 }
             )
         }
     }
 }
 
+private fun createEngine(fractalType: String, width: Int, height: Int, juliaCRe: Double, juliaCIm: Double): FractalEngine {
+    return when (FractalType.entries.find { it.name == fractalType } ?: FractalType.MANDELBROT) {
+        FractalType.MANDELBROT -> MandelbrotEngine(width, height)
+        FractalType.JULIA -> JuliaSetEngine(width, height).apply {
+            cRe = juliaCRe
+            cIm = juliaCIm
+        }
+        FractalType.BURNING_SHIP -> BurningShipEngine(width, height)
+        FractalType.TRICORN -> TricornEngine(width, height)
+    }
+}
+
 @Composable
 fun FractalCanvas(
     viewModel: FractalViewModel,
+    fractalType: String,
+    juliaCRe: Double,
+    juliaCIm: Double,
     colorPalette: String,
     isAnimated: Boolean,
     animationSpeed: Float,
     maxIterations: Int,
-    onEngineUpdate: (com.billybobbain.fractald.MandelbrotEngine) -> Unit = {},
-    onColoredDataUpdate: (Array<IntArray>) -> Unit = {}
+    isPaletteCycling: Boolean = false,
+    paletteOffset: Float = 0f,
+    onEngineUpdate: (FractalEngine) -> Unit = {},
+    onColoredDataUpdate: (Array<IntArray>) -> Unit = {},
+    onViewStateUpdate: (Double, Double, Double) -> Unit = { _, _, _ -> }
 ) {
     val configuration = LocalConfiguration.current
     val density = LocalDensity.current
     val userPreferences by viewModel.userPreferences.collectAsState()
+    val pendingRestoreState by viewModel.pendingRestoreState.collectAsState()
 
     // Scale factor for resolution (lower = higher detail)
     val scale = 6
     val width = with(density) { configuration.screenWidthDp.dp.toPx().toInt() } / scale
     val height = with(density) { configuration.screenHeightDp.dp.toPx().toInt() } / scale
 
-    val engine = remember(width, height) {
-        MandelbrotEngine(width, height).also {
+    val engine = remember(width, height, fractalType) {
+        createEngine(fractalType, width, height, juliaCRe, juliaCIm).also {
             onEngineUpdate(it)
         }
+    }
+
+    // Apply Julia c when type is Julia and preferences changed
+    LaunchedEffect(engine, fractalType, juliaCRe, juliaCIm) {
+        if (fractalType == FractalType.JULIA.name && engine is JuliaSetEngine) {
+            engine.cRe = juliaCRe
+            engine.cIm = juliaCIm
+            viewModel.requestRecalculation()
+        }
+    }
+
+    // Apply pending restore state only when engine type matches (so we don't apply to wrong fractal type)
+    val engineMatchesState = (engine is MandelbrotEngine && pendingRestoreState?.fractalType == FractalType.MANDELBROT.name) ||
+        (engine is JuliaSetEngine && pendingRestoreState?.fractalType == FractalType.JULIA.name) ||
+        (engine is BurningShipEngine && pendingRestoreState?.fractalType == FractalType.BURNING_SHIP.name) ||
+        (engine is TricornEngine && pendingRestoreState?.fractalType == FractalType.TRICORN.name)
+    LaunchedEffect(engine, pendingRestoreState, engineMatchesState) {
+        val state = pendingRestoreState ?: return@LaunchedEffect
+        if (!engineMatchesState) return@LaunchedEffect
+        engine.centerX = state.centerX
+        engine.centerY = state.centerY
+        engine.zoom = state.zoom
+        engine.maxIterations = state.maxIterations
+        if (engine is JuliaSetEngine && state.juliaCRe != null && state.juliaCIm != null) {
+            engine.cRe = state.juliaCRe
+            engine.cIm = state.juliaCIm
+        }
+        viewModel.updateMaxIterations(state.maxIterations)
+        viewModel.updateColorPalette(state.colorPalette)
+        viewModel.clearPendingRestoreState()
+        viewModel.requestRecalculation()
     }
 
     // Restore last view on startup
@@ -227,7 +361,7 @@ fun FractalCanvas(
         onEngineUpdate(engine)
     }
 
-    var mandelbrotData by remember { mutableStateOf<Array<IntArray>?>(null) }
+    var mandelbrotData by remember { mutableStateOf<Array<DoubleArray>?>(null) }
     var coloredData by remember { mutableStateOf<Array<IntArray>?>(null) }
 
     val palette = try {
@@ -246,38 +380,69 @@ fun FractalCanvas(
             viewModel.updateCalculatingState(false)
 
             // Add to history after calculation completes
+            val (jRe, jIm) = if (engine is JuliaSetEngine) Pair(engine.cRe, engine.cIm) else Pair(null, null)
             val currentState = ViewState(
                 centerX = engine.centerX,
                 centerY = engine.centerY,
                 zoom = engine.zoom,
                 maxIterations = engine.maxIterations,
-                colorPalette = colorPalette
+                colorPalette = colorPalette,
+                fractalType = fractalType,
+                juliaCRe = jRe,
+                juliaCIm = jIm
             )
             viewModel.addToHistory(currentState)
 
             // Save current view state for restoration on next launch
             viewModel.saveLastViewState(engine.centerX, engine.centerY, engine.zoom)
+            onViewStateUpdate(engine.centerX, engine.centerY, engine.zoom)
         }
     }
 
-    // Apply palette with animation
-    LaunchedEffect(mandelbrotData, palette, isAnimated, animationSpeed) {
+    // rememberUpdatedState so paletteOffset changes are read fresh each frame
+    // without restarting the animation loop
+    val currentPaletteOffset by rememberUpdatedState(paletteOffset)
+
+    // Apply palette with animation (and optional smooth palette cycling)
+    LaunchedEffect(mandelbrotData, palette, isAnimated, animationSpeed, isPaletteCycling) {
         if (mandelbrotData != null) {
             var timeOffset = 0.0
+            val allPalettes = ColorPalette.PaletteType.entries
+            var fromIdx = allPalettes.indexOf(palette).coerceAtLeast(0)
+            var toIdx = (fromIdx + 1) % allPalettes.size
+            var blendFactor = 0.0
+
             while (isActive) {
+                val effectiveTimeOffset = timeOffset + currentPaletteOffset / 50.0
                 withContext(Dispatchers.Default) {
-                    val newData = ColorPalette.applyPalette(
-                        mandelbrotData!!,
-                        maxIterations,
-                        palette,
-                        timeOffset
-                    )
+                    val newData = if (isPaletteCycling) {
+                        ColorPalette.applyBlendedPalette(
+                            mandelbrotData!!,
+                            maxIterations,
+                            allPalettes[fromIdx],
+                            allPalettes[toIdx],
+                            blendFactor,
+                            effectiveTimeOffset
+                        )
+                    } else {
+                        ColorPalette.applyPalette(mandelbrotData!!, maxIterations, palette, effectiveTimeOffset)
+                    }
                     coloredData = newData
                     onColoredDataUpdate(newData)
                 }
-                if (isAnimated) {
-                    delay(100) // Slower animation to reduce memory pressure
-                    timeOffset += animationSpeed * 0.15
+                if (isAnimated || isPaletteCycling) {
+                    delay(100)
+                    if (isAnimated) {
+                        timeOffset += animationSpeed * 0.15
+                    }
+                    if (isPaletteCycling) {
+                        blendFactor += animationSpeed * 0.008
+                        if (blendFactor >= 1.0) {
+                            blendFactor = 0.0
+                            fromIdx = toIdx
+                            toIdx = (toIdx + 1) % allPalettes.size
+                        }
+                    }
                 } else {
                     break
                 }
@@ -308,13 +473,30 @@ fun FractalCanvas(
                 }
             }
             .pointerInput(Unit) {
-                // Double tap to zoom in
+                // Double tap to zoom in; long-press on Mandelbrot to use point as Julia c and switch to Julia
                 detectTapGestures(
                     onDoubleTap = { offset ->
                         val px = (offset.x / scale).toInt()
                         val py = (offset.y / scale).toInt()
                         engine.zoomTo(px, py, 2.0)
                         viewModel.requestRecalculation()
+                    },
+                    onLongPress = {
+                        if (fractalType == FractalType.MANDELBROT.name) {
+                            val px = (it.x / scale).toInt().coerceIn(0, width - 1)
+                            val py = (it.y / scale).toInt().coerceIn(0, height - 1)
+                            val aspectRatio = width.toDouble() / height
+                            val rangeY = 2.0 / engine.zoom
+                            val rangeX = rangeY * aspectRatio
+                            val minX = engine.centerX - rangeX / 2
+                            val maxX = engine.centerX + rangeX / 2
+                            val minY = engine.centerY - rangeY / 2
+                            val maxY = engine.centerY + rangeY / 2
+                            val cRe = minX + (px.toDouble() / width) * (maxX - minX)
+                            val cIm = minY + (py.toDouble() / height) * (maxY - minY)
+                            viewModel.updateJuliaC(cRe, cIm)
+                            viewModel.updateFractalType(FractalType.JULIA.name)
+                        }
                     }
                 )
             }
@@ -371,6 +553,42 @@ fun SettingsDialog(
                     .heightIn(max = 500.dp)
                     .verticalScroll(scrollState)
             ) {
+                Text(
+                    "Fractal Type",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+                FractalType.entries.forEach { type ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = userPreferences.fractalType == type.name,
+                            onClick = { viewModel.updateFractalType(type.name) }
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            when (type) {
+                                FractalType.MANDELBROT -> "Mandelbrot"
+                                FractalType.JULIA -> "Julia"
+                                FractalType.BURNING_SHIP -> "Burning Ship"
+                                FractalType.TRICORN -> "Tricorn"
+                            }
+                        )
+                    }
+                }
+                Text(
+                    "Long-press on Mandelbrot to use that point as Julia c and switch to Julia.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 12.dp)
+                )
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
+
                 Text(
                     "Color Palette",
                     style = MaterialTheme.typography.titleMedium,
@@ -438,6 +656,25 @@ fun SettingsDialog(
                         onValueChange = { viewModel.updateAnimationSpeed(it) },
                         valueRange = 0.1f..2f
                     )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f).padding(top = 8.dp)) {
+                            Text("Cycle Palettes")
+                            Text(
+                                "Smoothly shift through all palettes",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = userPreferences.isPaletteCycling,
+                            onCheckedChange = { viewModel.updateIsPaletteCycling(it) }
+                        )
+                    }
                 }
 
                 HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
@@ -465,9 +702,12 @@ fun SettingsDialog(
 @Composable
 fun SaveBookmarkDialog(
     viewModel: FractalViewModel,
-    engine: com.billybobbain.fractald.MandelbrotEngine,
+    engine: FractalEngine,
     coloredData: Array<IntArray>,
     currentPalette: String,
+    fractalType: String,
+    juliaCRe: Double,
+    juliaCIm: Double,
     onDismiss: () -> Unit
 ) {
     var bookmarkName by remember { mutableStateOf("") }
@@ -503,7 +743,7 @@ fun SaveBookmarkDialog(
                             null
                         }
 
-                        // Save bookmark
+                        val (jRe, jIm) = if (engine is JuliaSetEngine) Pair(engine.cRe, engine.cIm) else Pair(null, null)
                         viewModel.saveBookmark(
                             name = bookmarkName,
                             centerX = engine.centerX,
@@ -511,7 +751,10 @@ fun SaveBookmarkDialog(
                             zoom = engine.zoom,
                             maxIterations = engine.maxIterations,
                             colorPalette = currentPalette,
-                            thumbnail = thumbnail
+                            thumbnail = thumbnail,
+                            fractalType = fractalType,
+                            juliaCRe = jRe,
+                            juliaCIm = jIm
                         )
                         onDismiss()
                     }
@@ -625,4 +868,62 @@ fun BookmarkItem(
             }
         }
     }
+}
+
+@Composable
+fun GoToDialog(
+    currentX: Double,
+    currentY: Double,
+    currentZoom: Double,
+    onDismiss: () -> Unit,
+    onGo: (Double, Double, Double) -> Unit
+) {
+    var xText by remember { mutableStateOf(currentX.toString()) }
+    var yText by remember { mutableStateOf(currentY.toString()) }
+    var zoomText by remember { mutableStateOf(currentZoom.toString()) }
+
+    val xVal = xText.toDoubleOrNull()
+    val yVal = yText.toDoubleOrNull()
+    val zoomVal = zoomText.toDoubleOrNull()?.takeIf { it > 0 }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Go to Location") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(
+                    value = xText,
+                    onValueChange = { xText = it },
+                    label = { Text("X (real)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                )
+                OutlinedTextField(
+                    value = yText,
+                    onValueChange = { yText = it },
+                    label = { Text("Y (imaginary)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                )
+                OutlinedTextField(
+                    value = zoomText,
+                    onValueChange = { zoomText = it },
+                    label = { Text("Zoom") },
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onGo(xVal!!, yVal!!, zoomVal!!) },
+                enabled = xVal != null && yVal != null && zoomVal != null
+            ) {
+                Text("Go")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
 }

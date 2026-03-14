@@ -23,7 +23,11 @@ data class UserPreferences(
     val lastCenterX: Double = -0.5,
     val lastCenterY: Double = 0.0,
     val lastZoom: Double = 0.6,
-    val restoreLastView: Boolean = true
+    val restoreLastView: Boolean = true,
+    val isPaletteCycling: Boolean = false,
+    val fractalType: String = "MANDELBROT",
+    val juliaCRe: Double = -0.7,
+    val juliaCIm: Double = 0.27015
 )
 
 class PreferencesRepository(private val context: Context) {
@@ -35,6 +39,10 @@ class PreferencesRepository(private val context: Context) {
     private val LAST_CENTER_Y_KEY = doublePreferencesKey("last_center_y")
     private val LAST_ZOOM_KEY = doublePreferencesKey("last_zoom")
     private val RESTORE_LAST_VIEW_KEY = booleanPreferencesKey("restore_last_view")
+    private val IS_PALETTE_CYCLING_KEY = booleanPreferencesKey("is_palette_cycling")
+    private val FRACTAL_TYPE_KEY = stringPreferencesKey("fractal_type")
+    private val JULIA_C_RE_KEY = doublePreferencesKey("julia_c_re")
+    private val JULIA_C_IM_KEY = doublePreferencesKey("julia_c_im")
 
     val userPreferencesFlow: Flow<UserPreferences> = context.dataStore.data
         .map { preferences ->
@@ -46,7 +54,11 @@ class PreferencesRepository(private val context: Context) {
                 lastCenterX = preferences[LAST_CENTER_X_KEY] ?: -0.5,
                 lastCenterY = preferences[LAST_CENTER_Y_KEY] ?: 0.0,
                 lastZoom = preferences[LAST_ZOOM_KEY] ?: 0.6,
-                restoreLastView = preferences[RESTORE_LAST_VIEW_KEY] ?: true
+                restoreLastView = preferences[RESTORE_LAST_VIEW_KEY] ?: true,
+                isPaletteCycling = preferences[IS_PALETTE_CYCLING_KEY] ?: false,
+                fractalType = preferences[FRACTAL_TYPE_KEY] ?: "MANDELBROT",
+                juliaCRe = preferences[JULIA_C_RE_KEY] ?: -0.7,
+                juliaCIm = preferences[JULIA_C_IM_KEY] ?: 0.27015
             )
         }
 
@@ -85,6 +97,25 @@ class PreferencesRepository(private val context: Context) {
     suspend fun updateRestoreLastView(restore: Boolean) {
         context.dataStore.edit { preferences ->
             preferences[RESTORE_LAST_VIEW_KEY] = restore
+        }
+    }
+
+    suspend fun updateIsPaletteCycling(cycling: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[IS_PALETTE_CYCLING_KEY] = cycling
+        }
+    }
+
+    suspend fun updateFractalType(fractalType: String) {
+        context.dataStore.edit { preferences ->
+            preferences[FRACTAL_TYPE_KEY] = fractalType
+        }
+    }
+
+    suspend fun updateJuliaC(cRe: Double, cIm: Double) {
+        context.dataStore.edit { preferences ->
+            preferences[JULIA_C_RE_KEY] = cRe
+            preferences[JULIA_C_IM_KEY] = cIm
         }
     }
 }

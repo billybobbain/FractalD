@@ -12,7 +12,7 @@ object ColorPalette {
 
     // Apply palette to iteration values with time offset for rotation
     fun applyPalette(
-        iterations: Array<IntArray>,
+        iterations: Array<DoubleArray>,
         maxIterations: Int,
         paletteType: PaletteType,
         timeOffset: Double
@@ -23,16 +23,52 @@ object ColorPalette {
 
         for (y in 0 until height) {
             for (x in 0 until width) {
-                val iter = iterations[y][x]
-                result[y][x] = getColor(iter, maxIterations, paletteType, timeOffset)
+                result[y][x] = getColor(iterations[y][x], maxIterations, paletteType, timeOffset)
             }
         }
 
         return result
     }
 
+    fun applyBlendedPalette(
+        iterations: Array<DoubleArray>,
+        maxIterations: Int,
+        fromPalette: PaletteType,
+        toPalette: PaletteType,
+        blend: Double,
+        timeOffset: Double
+    ): Array<IntArray> {
+        val height = iterations.size
+        val width = iterations[0].size
+        val result = Array(height) { IntArray(width) }
+        for (y in 0 until height) {
+            for (x in 0 until width) {
+                result[y][x] = getBlendedColor(iterations[y][x], maxIterations, fromPalette, toPalette, blend, timeOffset)
+            }
+        }
+        return result
+    }
+
+    private fun getBlendedColor(
+        iteration: Double,
+        maxIterations: Int,
+        fromPalette: PaletteType,
+        toPalette: PaletteType,
+        blend: Double,
+        timeOffset: Double
+    ): Int {
+        if (iteration >= maxIterations) return android.graphics.Color.BLACK
+        val normalizedIter = (iteration + timeOffset * 50) % 256.0 / 255.0
+        val colorA = getPaletteColor(normalizedIter, fromPalette)
+        val colorB = getPaletteColor(normalizedIter, toPalette)
+        val r = colorA.red + (colorB.red - colorA.red) * blend.toFloat()
+        val g = colorA.green + (colorB.green - colorA.green) * blend.toFloat()
+        val b = colorA.blue + (colorB.blue - colorA.blue) * blend.toFloat()
+        return android.graphics.Color.rgb((r * 255).toInt(), (g * 255).toInt(), (b * 255).toInt())
+    }
+
     private fun getColor(
-        iteration: Int,
+        iteration: Double,
         maxIterations: Int,
         paletteType: PaletteType,
         timeOffset: Double
@@ -42,23 +78,27 @@ object ColorPalette {
             return android.graphics.Color.BLACK
         }
 
-        // Add time offset for palette rotation
-        val normalizedIter = (iteration + timeOffset * 50) % 256 / 255.0
-
-        val color = when (paletteType) {
-            PaletteType.CLASSIC -> getClassicColor(normalizedIter)
-            PaletteType.FIRE -> getFireColor(normalizedIter)
-            PaletteType.OCEAN -> getOceanColor(normalizedIter)
-            PaletteType.RAINBOW -> getRainbowColor(normalizedIter)
-            PaletteType.PSYCHEDELIC -> getPsychedelicColor(normalizedIter)
-            PaletteType.GRAYSCALE -> getGrayscaleColor(normalizedIter)
-        }
+        // Fractional iteration feeds directly into the continuous palette functions,
+        // smoothly interpolating colors across what were previously hard iteration bands
+        val normalizedIter = (iteration + timeOffset * 50) % 256.0 / 255.0
+        val color = getPaletteColor(normalizedIter, paletteType)
 
         return android.graphics.Color.rgb(
             (color.red * 255).toInt(),
             (color.green * 255).toInt(),
             (color.blue * 255).toInt()
         )
+    }
+
+    private fun getPaletteColor(t: Double, paletteType: PaletteType): Color {
+        return when (paletteType) {
+            PaletteType.CLASSIC -> getClassicColor(t)
+            PaletteType.FIRE -> getFireColor(t)
+            PaletteType.OCEAN -> getOceanColor(t)
+            PaletteType.RAINBOW -> getRainbowColor(t)
+            PaletteType.PSYCHEDELIC -> getPsychedelicColor(t)
+            PaletteType.GRAYSCALE -> getGrayscaleColor(t)
+        }
     }
 
     private fun getClassicColor(t: Double): Color {

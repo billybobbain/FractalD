@@ -14,7 +14,10 @@ data class Bookmark(
     val maxIterations: Int,
     val colorPalette: String,
     val thumbnail: ByteArray?, // PNG image data
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
+    val fractalType: String = FractalType.MANDELBROT.name,
+    val juliaCRe: Double? = null,
+    val juliaCIm: Double? = null
 ) {
     // Override equals and hashCode to handle ByteArray properly
     override fun equals(other: Any?): Boolean {
@@ -35,6 +38,9 @@ data class Bookmark(
             if (!thumbnail.contentEquals(other.thumbnail)) return false
         } else if (other.thumbnail != null) return false
         if (timestamp != other.timestamp) return false
+        if (fractalType != other.fractalType) return false
+        if (juliaCRe != other.juliaCRe) return false
+        if (juliaCIm != other.juliaCIm) return false
 
         return true
     }
@@ -49,6 +55,9 @@ data class Bookmark(
         result = 31 * result + colorPalette.hashCode()
         result = 31 * result + (thumbnail?.contentHashCode() ?: 0)
         result = 31 * result + timestamp.hashCode()
+        result = 31 * result + fractalType.hashCode()
+        result = 31 * result + (juliaCRe?.hashCode() ?: 0)
+        result = 31 * result + (juliaCIm?.hashCode() ?: 0)
         return result
     }
 }

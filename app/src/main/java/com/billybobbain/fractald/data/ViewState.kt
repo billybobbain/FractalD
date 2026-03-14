@@ -5,5 +5,8 @@ data class ViewState(
     val centerY: Double,
     val zoom: Double,
     val maxIterations: Int,
-    val colorPalette: String
+    val colorPalette: String,
+    val fractalType: String = FractalType.MANDELBROT.name,
+    val juliaCRe: Double? = null,
+    val juliaCIm: Double? = null
 )
