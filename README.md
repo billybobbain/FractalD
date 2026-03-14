@@ -1,21 +1,41 @@
 # FractalD
 
-FractalD is an interactive Mandelbrot set explorer for Android built with Kotlin and Jetpack Compose.
+FractalD is an interactive fractal explorer for Android built with Kotlin and Jetpack Compose. Explore the Mandelbrot set, Julia sets, the Burning Ship, and the Tricorn with the same smooth gestures and color options.
 
-This project started as an experiment in fractal rendering and mathematical visualization, and evolved into a full-featured explorer designed for smooth real-time navigation of the Mandelbrot set.
+This project started as an experiment in fractal rendering and mathematical visualization, and evolved into a full-featured explorer designed for smooth real-time navigation of the complex plane.
 
 The goal was to combine efficient rendering techniques with a modern Android UI to make exploring fractals intuitive and fast on a mobile device.
+
+## Fractals
+
+FractalD supports four fractal types, each with the same view model (complex plane, zoom, pan) and color pipeline:
+
+### Mandelbrot Set
+The set of complex numbers *c* for which the iteration *z*ₙ₊₁ = *z*ₙ² + *c* (starting at *z*₀ = 0) does not escape. The classic fractal with the iconic cardioid and bulbs; infinite detail at every scale.
+
+### Julia Set
+The same iteration *z*ₙ₊₁ = *z*ₙ² + *c*, but with *c* fixed and *z*₀ varying across the plane. Each point in the Mandelbrot set corresponds to a unique Julia set. **Long-press** on the Mandelbrot view to use that point as *c* and switch to its Julia set.
+
+### Burning Ship
+Defined by *z*ₙ₊₁ = (|Re(*z*ₙ)| + i|Im(*z*ₙ)|)² + *c*. The absolute values before squaring produce a ship-like shape and different spiral structures. Same exploration model as the Mandelbrot set.
+
+### Tricorn (Mandelbar)
+Defined by *z*ₙ₊₁ = conjugate(*z*ₙ)² + *c*. The conjugate gives a three-cornered (“tricorn”) shape and symmetric, distinct patterns. Same view and controls as the other fractals.
+
+Switch fractal type in **Settings**; your choice is saved and bookmarks store the fractal type (and, for Julia, the *c* parameter) so you can return to any view exactly.
 
 ## Features
 
 ### Core Functionality
-- **Real-time fractal rendering** with optimized calculation algorithms
+- **Real-time fractal rendering** with optimized calculation algorithms for all supported fractals
+- **Fractal type selector** in Settings (Mandelbrot, Julia, Burning Ship, Tricorn)
+- **“Pick c from Mandelbrot”** – long-press on the Mandelbrot set to set the Julia parameter *c* and switch to that Julia set
 - **Interactive exploration** via touch gestures:
   - Pinch to zoom in/out
   - Pan to navigate
   - Double-tap to zoom into a point
-- **Browser-like navigation** with back/forward history
-- **Home button** to reset to full Mandelbrot set view
+- **Browser-like navigation** with back/forward history (includes fractal type and Julia *c*)
+- **Home button** to reset to the default view for the current fractal
 
 ### Rendering Optimizations
 - **Rectangular subdivision with border tracing** - Efficiently fills large uniform regions without calculating every pixel
@@ -35,7 +55,7 @@ Save and organize your favorite fractal discoveries:
 - **Create bookmarks** - Tap the bookmark icon in the toolbar to save your current view
 - **Automatic thumbnails** - Each bookmark generates a preview thumbnail of the fractal at that location
 - **Browse saved views** - Open the bookmarks list to see all your saved locations with thumbnails
-- **Quick restore** - Tap any bookmark to instantly jump back to that exact view (zoom, position, iterations, and color palette)
+- **Quick restore** - Tap any bookmark to instantly jump back to that exact view (fractal type, zoom, position, iterations, color palette; for Julia, the *c* parameter is also restored)
 - **Delete bookmarks** - Remove bookmarks you no longer need from the manager
 - **Persistent storage** - Bookmarks are saved in a Room database and persist across app restarts
 - **Perfect for sharing** - Save interesting locations to show friends or revisit later
@@ -44,8 +64,9 @@ Save and organize your favorite fractal discoveries:
 
 Customize your fractal exploration experience through the settings dialog:
 
-#### Display Settings
-- **Restore last view on startup** - Toggle whether the app returns to your last explored location or starts at the full Mandelbrot set
+#### Fractal & Display Settings
+- **Fractal type** - Choose Mandelbrot, Julia, Burning Ship, or Tricorn
+- **Restore last view on startup** - Toggle whether the app returns to your last explored location or starts at the default view
 - **Current view info** - See your exact position (center coordinates and zoom level)
 
 #### Rendering Settings
@@ -113,6 +134,7 @@ app/src/main/java/com/billybobbain/fractald/
 ├── data/               # Data models and persistence
 │   ├── Bookmark.kt
 │   ├── BookmarkDatabase.kt
+│   ├── FractalType.kt   # Fractal type enum
 │   ├── UserPreferences.kt
 │   └── ViewState.kt
 ├── ui/                 # Compose UI components
@@ -122,30 +144,35 @@ app/src/main/java/com/billybobbain/fractald/
 │   └── ThumbnailGenerator.kt
 ├── viewmodel/          # ViewModels
 │   └── FractalViewModel.kt
+├── BurningShipEngine.kt # Burning Ship fractal engine
 ├── ColorPalette.kt     # Color palette definitions
+├── FractalEngine.kt    # Common engine interface
+├── JuliaSetEngine.kt   # Julia set engine
 ├── MainActivity.kt     # App entry point
-└── MandelbrotEngine.kt # Fractal calculation engine
+├── MandelbrotEngine.kt # Mandelbrot set engine
+└── TricornEngine.kt    # Tricorn (Mandelbar) engine
 ```
 
 ## Usage Tips
 
 - **Double-tap** on an interesting area to zoom in quickly
-- **Use bookmarks** to save and share interesting discoveries
+- **Long-press on the Mandelbrot set** to use that point as the Julia parameter *c* and switch to its Julia set
+- **Use bookmarks** to save and share interesting discoveries (fractal type and Julia *c* are saved)
 - **Increase iterations** for deeper zoom levels to see more detail
 - **Try different palettes** - each reveals different features of the set
 - **Pause animation** if you want static colors for screenshots
+- **Switch fractal type** in Settings to explore Burning Ship or Tricorn from their default views
 
 ## Mathematical Background
 
-The Mandelbrot set is the set of complex numbers *c* for which the iterative function:
+All four fractals use the same escape-time idea: iterate a function and color by how quickly the orbit escapes (or stays bounded).
 
-```
-z(n+1) = z(n)² + c
-```
+- **Mandelbrot set**: *z*ₙ₊₁ = *z*ₙ² + *c*, with *z*₀ = 0 and *c* varying over the plane. The set is the *c* for which the orbit stays bounded.
+- **Julia set**: Same formula *z*ₙ₊₁ = *z*ₙ² + *c*, but *c* is fixed and *z*₀ varies over the plane. Each *c* in the Mandelbrot set corresponds to one Julia set.
+- **Burning Ship**: *z*ₙ₊₁ = (|Re(*z*ₙ)| + i|Im(*z*ₙ)|)² + *c*; the absolute values before squaring change the shape entirely.
+- **Tricorn**: *z*ₙ₊₁ = conjugate(*z*ₙ)² + *c*; the conjugate gives a three-lobed, symmetric set.
 
-does not diverge when starting from z₀ = 0. Points are colored based on how quickly they escape to infinity (or colored black if they never escape).
-
-The set exhibits infinite complexity at all scales, revealing intricate self-similar patterns no matter how deep you zoom.
+Points are colored by smooth escape time (how quickly the orbit exceeds a radius of 2). The sets exhibit intricate, self-similar structure at all scales.
 
 ## Screenshots
 
